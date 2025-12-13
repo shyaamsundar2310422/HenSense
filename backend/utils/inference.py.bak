@@ -1,0 +1,107 @@
+# main.py
+# Ensure local backend folder is importable when servers (hypercorn) launch
+import sys, pathlib
+HERE = pathlib.Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+
+import io
+import os
+from pathlib import Path
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi.responses import JSONResponse
+from PIL import Image
+import torch
+import logging
+
+
+from utils.draw import annotate_and_save
+from utils.csv_store import save_prediction, load_predictions, PREDICTIONS_CSV
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("backend")
+
+APP_DIR = Path(__file__).resolve().parent
+MODEL_PATH = os.environ.get("MODEL_PATH", str(APP_DIR / "models" / "best.pt"))
+UPLOADS_DIR = APP_DIR / "uploads"
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+
+app = FastAPI(title="Chicken YOLO classifier API (Hypercorn)")
+
+@app.on_event("startup")
+def startup_event():
+    device = 0 if torch.cuda.is_available() else "cpu"
+    app.state.device = device
+    try:
+        model = load_model(MODEL_PATH)
+        # try to move model to device if supported
+        try:
+            model.to(device)
+        except Exception:
+            logger.info("Could not move ultralytics model to device; continuing.")
+        app.state.model = model
+        app.state.health_map = build_health_map_from_model(model)
+        logger.info("Model loaded and ready.")
+    except Exception as e:
+        app.state.model = None
+        app.state.model_error = str(e)
+        logger.exception("Model failed to load at startup.")
+
+@app.get("/")
+def root():
+    return {"status": "ok", "info": "POST /predict (file) — GET /history?username=<user>"}
+
+@app.post("/predict")
+async def predict_route(
+    file: UploadFile = File(...),
+    username: str = Form("guest"),
+    conf: float = Form(0.25),
+    imgsz: int = Form(960)
+):
+    if app.state.model is None:
+        raise HTTPException(status_code=500, detail=f"Model not available: {getattr(app.state,'model_error','unknown')}")
+
+    contents = await file.read()
+    try:
+        pil_img = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
+
+    try:
+        inf = run_inference(app.state.model, pil_img, conf=conf, imgsz=imgsz, device=app.state.device)
+    except Exception as e:
+        logger.exception("Inference error")
+        raise HTTPException(status_code=500, detail=f"Inference failed: {e}")
+
+    sample_health = inf.get("sample_health", "Unknown")
+    top_conf = 0.0
+    if inf.get("predictions"):
+        top_conf = inf["predictions"][0].get("conf", 0.0)
+
+    try:
+        save_prediction(username=username, image_name=file.filename, label=sample_health, confidence=top_conf, csv_path=PREDICTIONS_CSV)
+    except Exception as e:
+        logger.warning(f"Could not save prediction to CSV: {e}")
+
+    try:
+        saved_path = annotate_and_save(pil_img, f"{sample_health} ({top_conf:.3f})", out_dir=str(UPLOADS_DIR))
+    except Exception as e:
+        logger.warning(f"Annotate/save failed: {e}")
+        saved_path = None
+
+    response = {
+        "predictions": inf.get("predictions", []),
+        "sample_health": sample_health,
+        "saved_path": saved_path
+    }
+    return JSONResponse(content=response)
+
+@app.get("/history")
+def history(username: str = None):
+    df = load_predictions()
+    if df.empty:
+        return {"predictions": []}
+    if username:
+        df = df[df["username"] == username]
+    records = df.sort_values("timestamp", ascending=False).to_dict(orient="records")
+    return {"predictions": records}

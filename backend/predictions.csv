@@ -1,0 +1,12 @@
+timestamp,username,image_name,label,confidence
+2025-12-05 17:44:35,guest,helpdeskbg.jpg,Unknown,0.0
+2025-12-05 17:46:09,guest,Screenshot 2025-11-27 205409.png,Unhealthy,0.813
+2025-12-05T17:57:12.119266,guest,C:\Users\Jeyakumar Sundararaj\CHICKEN_FINAL\backend\uploads\pred_1764937632101.jpg,Unhealthy,[{'class': 2; 'label': 'Newcastle Disease'; 'conf': 0.813; 'xyxy': [5.12; 48.85; 54.13; 100.84]; 'health': 'Unhealthy'}]
+2025-12-05T18:29:31.205832,guest,C:\Users\Jeyakumar Sundararaj\CHICKEN_FINAL\backend\uploads\pred_1764939571201.jpg,Unhealthy,[{'class': 2; 'label': 'Newcastle Disease'; 'conf': 0.813; 'xyxy': [5.12; 48.85; 54.13; 100.84]; 'health': 'Unhealthy'}]
+2025-12-05T18:29:49.152461,guest,C:\Users\Jeyakumar Sundararaj\CHICKEN_FINAL\backend\uploads\pred_1764939589143.jpg,Unhealthy,[{'class': 2; 'label': 'Newcastle Disease'; 'conf': 0.813; 'xyxy': [5.12; 48.85; 54.13; 100.84]; 'health': 'Unhealthy'}]
+2025-12-07T01:10:56.002619,guest,C:\Users\Jeyakumar Sundararaj\CHICKEN_FINAL\backend\uploads\pred_1765050055994.jpg,Unhealthy,[{'class': 2; 'label': 'Newcastle Disease'; 'conf': 0.813; 'xyxy': [5.12; 48.85; 54.13; 100.84]; 'health': 'Unhealthy'}]
+2025-12-07T01:26:07.360086,guest,C:\Users\Jeyakumar Sundararaj\CHICKEN_FINAL\backend\uploads\pred_1765050967360.jpg,Unhealthy,[{'class': 2; 'label': 'Newcastle Disease'; 'conf': 0.813; 'xyxy': [5.12; 48.85; 54.13; 100.84]; 'health': 'Unhealthy'}]
+2025-12-10T23:23:05.515399,admin,C:/Users/Jeyakumar Sundararaj/CHICKEN_FINAL/backend/uploads/annotated_20251210_175305_515399.png,healthy,
+2025-12-12T22:55:54.005196,admin,C:/Users/Jeyakumar Sundararaj/CHICKEN_FINAL/backend/uploads/annotated_20251212_172553_998183.png,healthy,
+2025-12-12T23:08:56.847897,SHYAAM,C:/Users/Jeyakumar Sundararaj/CHICKEN_FINAL/backend/uploads/annotated_20251212_173856_830601.png,healthy,
+2025-12-12T23:09:58.450049,guest,C:/Users/Jeyakumar Sundararaj/CHICKEN_FINAL/backend/uploads/annotated_20251212_173957_206391.png,healthy,
