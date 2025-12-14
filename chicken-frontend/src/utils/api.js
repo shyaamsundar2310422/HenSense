@@ -1,19 +1,32 @@
 import axios from 'axios';
-// api.js (top)
-console.log('FORCED VERCEL REBUILD');
 
-console.log('api.js loaded!');
+// Force rebuild marker
+console.log('FORCED VERCEL REBUILD');
+console.log('api.js loaded');
+
+// ✅ Resolve API base ONCE at module load time
+const API_BASE = (() => {
+  try {
+    // Vite env (works only at build time)
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+  } catch (e) {}
+
+  // Browser override
+  const ls =
+    typeof window !== 'undefined' ? localStorage.getItem('cf_api_url') : null;
+
+  return ls || 'http://127.0.0.1:8000';
+})().replace(/\/$/, '');
+
+// ---------------- HELPERS ----------------
 
 export function getApiBase() {
-  const env = import.meta.env.VITE_API_URL;
-  const ls = localStorage.getItem('cf_api_url');
-
-  const base = env || ls || 'http://127.0.0.1:8000';
-
-  return base.replace(/\/$/, '');
+  return API_BASE;
 }
 
-/* ---------------- AUTH ---------------- */
+// ---------------- AUTH ----------------
 
 export async function registerRequest(username, password) {
   const api = getApiBase();
@@ -47,7 +60,10 @@ export async function loginRequest(username, password) {
     body: form
   });
 
-  if (!res.ok) throw new Error(`Login failed ${res.status}`);
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Login failed: ${res.status} ${t}`);
+  }
 
   return res.json();
 }
@@ -62,7 +78,7 @@ export function getAuthHeaders() {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
-/* ---------------- PREDICT ---------------- */
+// ---------------- PREDICT ----------------
 
 export async function sendImage(file, { conf = 0.25, onUploadProgress } = {}) {
   const api = getApiBase();
