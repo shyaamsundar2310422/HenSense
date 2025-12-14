@@ -1,24 +1,19 @@
-// src/utils/api.js
 import axios from 'axios';
+// api.js (top)
+console.log('FORCED VERCEL REBUILD');
 
 console.log('api.js loaded!');
 
 export function getApiBase() {
-  try {
-    console.log('getApiBase RAW =', raw);
-    console.log('getApiBase RETURN =', cleaned);
+  const env = import.meta.env.VITE_API_URL;
+  const ls = localStorage.getItem('cf_api_url');
 
-    const env = import.meta.env?.VITE_API_URL;
-    const ls = localStorage.getItem('cf_api_url');
-    const raw = env ?? ls ?? 'http://127.0.0.1:8000';
+  const base = env || ls || 'http://127.0.0.1:8000';
 
-    return String(raw).trim().replace(/\/$/, '');
-  } catch {
-    return 'http://127.0.0.1:8000';
-  }
+  return base.replace(/\/$/, '');
 }
 
-// ---------------- AUTH ----------------
+/* ---------------- AUTH ---------------- */
 
 export async function registerRequest(username, password) {
   const api = getApiBase();
@@ -67,7 +62,7 @@ export function getAuthHeaders() {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
-// ---------------- PREDICT ----------------
+/* ---------------- PREDICT ---------------- */
 
 export async function sendImage(file, { conf = 0.25, onUploadProgress } = {}) {
   const api = getApiBase();
@@ -79,9 +74,7 @@ export async function sendImage(file, { conf = 0.25, onUploadProgress } = {}) {
 
   const resp = await axios.post(url, form, {
     headers: { ...getAuthHeaders() },
-    onUploadProgress: (ev) => {
-      if (onUploadProgress) onUploadProgress(ev);
-    }
+    onUploadProgress
   });
 
   return resp.data;
