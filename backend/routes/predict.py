@@ -1,11 +1,16 @@
 # backend/routes/predict.py
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Response
-from fastapi.responses import JSONResponse
-import os, io, base64, tempfile, asyncio
+from fastapi.responses import JSONResponse, FileResponse
+import os
+import io
+import base64
+import tempfile
+import asyncio
 from typing import List, Dict
 from concurrent.futures import ThreadPoolExecutor
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
+import requests
 
 router = APIRouter()
 
@@ -13,11 +18,17 @@ router = APIRouter()
 try:
     from ultralytics import YOLO
     YOLO_AVAILABLE = True
-except Exception:
+except Exception as e:
+    print("YOLO import failed:", e)
     YOLO_AVAILABLE = False
 
-# ---------------- MODEL PATH ----------------
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "best.pt")
+# ---------------- MODEL CONFIG ----------------
+# Set this in Render ENV:
+# MODEL_URL=https://huggingface.co/.../best.pt
+MODEL_URL = os.getenv("MODEL_URL")
+
+# Render-safe writable location
+MODEL_PATH = "/tmp/best.pt"
 
 _MODEL = None
 _MODEL_LOCK = asyncio.Lock()
@@ -26,17 +37,30 @@ _EXECUTOR = ThreadPoolExecutor(max_workers=1)
 # ---------------- LOAD MODEL ----------------
 async def load_model_if_needed():
     global _MODEL
+
     if not YOLO_AVAILABLE:
-        return None
+        raise RuntimeError("YOLO not available")
 
     async with _MODEL_LOCK:
         if _MODEL is None:
             if not os.path.exists(MODEL_PATH):
-                raise RuntimeError(f"Model not found: {MODEL_PATH}")
+                if not MODEL_URL:
+                    raise RuntimeError("MODEL_URL not set")
+
+                print("Downloading model from:", MODEL_URL)
+                r = requests.get(MODEL_URL, stream=True)
+                r.raise_for_status()
+
+                with open(MODEL_PATH, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+                print("Model downloaded to", MODEL_PATH)
+
             _MODEL = YOLO(MODEL_PATH)
+            print("YOLO model loaded")
 
     return _MODEL
-
 
 # ---------------- PARSE YOLO OUTPUT ----------------
 def extract_predictions(results, conf_th: float) -> List[Dict]:
@@ -66,18 +90,14 @@ def extract_predictions(results, conf_th: float) -> List[Dict]:
 
     return preds
 
-
 # ---------------- INFERENCE ----------------
 async def run_inference(image_path: str, conf_th: float):
     model = await load_model_if_needed()
-    if model is None:
-        raise RuntimeError("YOLO not available")
 
     def _predict():
-        # 🚨 DO NOT FILTER HERE
         return model.predict(
             source=image_path,
-            conf=0.001,        # VERY LOW
+            conf=0.001,   # VERY LOW here
             imgsz=640,
             verbose=False
         )
@@ -87,7 +107,7 @@ async def run_inference(image_path: str, conf_th: float):
 
     preds = extract_predictions(results, conf_th)
 
-    # annotated image (YOLO-drawn)
+    # annotated image from YOLO
     img_np = results[0].plot()
     pil_img = Image.fromarray(img_np)
 
@@ -96,12 +116,10 @@ async def run_inference(image_path: str, conf_th: float):
 
     return preds, buf.getvalue()
 
-
 # ---------------- ROUTES ----------------
 @router.options("/predict")
 async def predict_options():
     return Response(status_code=204)
-
 
 @router.post("/predict")
 async def predict(
@@ -113,7 +131,6 @@ async def predict(
 
     contents = await file.read()
 
-    # validate image
     try:
         Image.open(io.BytesIO(contents)).verify()
     except Exception:
@@ -135,30 +152,23 @@ async def predict(
     except Exception as e:
         raise HTTPException(500, f"Inference error: {e}")
 
+    annotated_b64 = base64.b64encode(annotated_bytes).decode()
+
     return JSONResponse({
         "ok": True,
         "filename": file.filename,
         "predictions": preds,
-        "annotated_image_base64": base64.b64encode(annotated_bytes).decode(),
-        "annotated_image": base64.b64encode(annotated_bytes).decode()
+        "annotated_image_base64": annotated_b64
     })
 
-from fastapi.responses import FileResponse
-
+# ---------------- MODEL DOWNLOAD (OPTIONAL) ----------------
 @router.get("/model/download")
 async def download_model():
-    model_path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "models",
-        "best.pt"
-    )
-
-    if not os.path.exists(model_path):
-        raise HTTPException(status_code=404, detail="Model not found")
+    if not os.path.exists(MODEL_PATH):
+        raise HTTPException(status_code=404, detail="Model not loaded yet")
 
     return FileResponse(
-        path=model_path,
+        path=MODEL_PATH,
         filename="best.pt",
         media_type="application/octet-stream"
     )

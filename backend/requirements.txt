@@ -1,12 +1,12 @@
 fastapi
 uvicorn
 pillow
+python-multipart
 sqlalchemy
 passlib[bcrypt]
 pyjwt
-python-multipart
+requests
 
-# YOLO dependencies
-ultralytics==8.1.0
+ultralytics
 torch
 torchvision
