@@ -5,9 +5,8 @@ sqlalchemy
 passlib[bcrypt]
 pyjwt
 python-multipart
-numpy
 
-# YOLO (CPU)
-ultralytics
+# YOLO dependencies
+ultralytics==8.1.0
 torch
 torchvision
