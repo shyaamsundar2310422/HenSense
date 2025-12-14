@@ -5,3 +5,9 @@ sqlalchemy
 passlib[bcrypt]
 pyjwt
 python-multipart
+numpy
+
+# YOLO (CPU)
+ultralytics
+torch
+torchvision
